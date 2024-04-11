@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 )
 
 const (
@@ -25,14 +26,17 @@ func main() {
 	seconds := os.Args[2]
 
 	msg := fmt.Sprintf("警告：地區預計震度%s級地震\n預計到達時間:%s秒", magnitude, seconds)
+	wg := &sync.WaitGroup{}
 
 	for _, token := range tokens {
-		go notify(msg, token)
+		wg.Add(1)
+		go notify(wg, msg, token)
 	}
-
+	wg.Wait()
 }
 
-func notify(msg, token string) {
+func notify(wg *sync.WaitGroup, msg string, token string) {
+
 	client := &http.Client{}
 	data := "message=" + msg
 	req, err := http.NewRequest("POST", lineUrl, bytes.NewBufferString(data))
@@ -49,7 +53,11 @@ func notify(msg, token string) {
 		fmt.Println("Error sending request:", err)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() {
+		resp.Body.Close()
+		wg.Done()
+	}()
 
 	fmt.Println("Message sent successfully")
+
 }
